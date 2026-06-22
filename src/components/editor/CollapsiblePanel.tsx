@@ -3,6 +3,19 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronDown, GripVertical } from "lucide-react";
 
+type CollapsiblePanelProps = {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  badge?: React.ReactNode;
+  collapsedSections: Record<string, boolean>;
+  orderValue: number;
+  forceCollapsed?: boolean;
+  onToggle: (id: string) => void;
+  className?: string;
+  children: React.ReactNode;
+};
+
 function CollapsiblePanel({
   id,
   title,
@@ -14,7 +27,7 @@ function CollapsiblePanel({
   onToggle,
   className = "",
   children,
-}) {
+}: CollapsiblePanelProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const isCollapsed = Boolean(collapsedSections[id]) || forceCollapsed;
   const panelStyle = {

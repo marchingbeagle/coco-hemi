@@ -17,7 +17,7 @@ function waitForServer(url, timeoutMs = 30_000) {
           return;
         }
       } catch {
-        // Keep polling until Vite preview is ready or the timeout is reached.
+        // Keep polling until the Next.js server is ready or the timeout is reached.
       }
 
       if (Date.now() > deadline) {
@@ -35,7 +35,7 @@ function waitForServer(url, timeoutMs = 30_000) {
 async function run() {
   const preview = spawn(
     process.execPath,
-    ["./node_modules/vite/bin/vite.js", "preview", "--host", host, "--port", port, "--strictPort"],
+    ["./node_modules/next/dist/bin/next", "start", "--hostname", host, "--port", port],
     {
       cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],

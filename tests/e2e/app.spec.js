@@ -11,7 +11,6 @@ test("renders the editor without console errors", async ({ page }) => {
 
   await expect(page.getByText("Coco Hemi")).toBeVisible();
   await expect(page.getByRole("button", { name: /enviar foto/i })).toBeVisible();
-  await expect(page.locator("#root")).not.toBeEmpty();
   await expect(page.locator("main.app")).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });

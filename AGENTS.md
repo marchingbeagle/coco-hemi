@@ -11,7 +11,7 @@ fora do Git e a verificacao adequada foi executada.
 
 ## 1. Contexto do Projeto
 
-`Coco Hemi` e um webapp Vite/React para:
+`Coco Hemi` e um webapp Next.js/React para:
 
 - aplicar filtros locais em fotos com canvas;
 - reconhecer pessoa/assunto com `@mediapipe/tasks-vision`;
@@ -22,9 +22,9 @@ fora do Git e a verificacao adequada foi executada.
 
 Stack atual:
 
-- Vite `7`;
+- Next.js App Router;
 - React `19`;
-- JavaScript com JSX;
+- TypeScript com TSX;
 - CSS global em `src/styles.css`;
 - shadcn/ui adaptado localmente em `src/components/ui`;
 - `lucide-react` para icones;
@@ -35,17 +35,20 @@ Stack atual:
 Arquivos principais:
 
 ```text
-src/main.jsx                 # fluxo principal do editor, filtros, IA e canvas
+app/page.tsx                 # rota principal do App Router
+app/api/gemini-image/route.ts # geracao IA server-side
+src/App.tsx                  # composicao raiz do editor
+src/components/editor/*.tsx  # fluxo principal do editor, filtros, IA e canvas
 src/styles.css               # tokens visuais, layout e estados responsivos
-src/components/ui/*.jsx      # componentes base no padrao shadcn adaptado
-src/lib/utils.js             # helper cn()
+src/components/ui/*.tsx      # componentes base no padrao shadcn adaptado
+src/lib/utils.ts             # helper cn()
 components.json              # configuracao shadcn
 .env.example                 # variaveis ficticias
 ```
 
 ## 2. Principios Obrigatorios
 
-- Entenda o fluxo existente antes de editar. Leia `src/main.jsx`,
+- Entenda o fluxo existente antes de editar. Leia `src/components/editor`,
   `src/styles.css` e componentes afetados.
 - Faca a menor mudanca coerente que resolva o problema por completo.
 - Preserve comportamento existente salvo quando a solicitacao pedir mudanca.
@@ -62,9 +65,9 @@ components.json              # configuracao shadcn
 - Nunca commite `.env`, chaves Gemini, tokens, cookies, imagens privadas, logs ou
   dumps locais.
 - `.env.example` deve conter apenas placeholders, como
-  `VITE_GEMINI_API_KEY=your_gemini_api_key_here`.
-- A chave `VITE_GEMINI_API_KEY` e publica no bundle por definicao do Vite. Nao
-  trate isso como segredo de servidor. Evite exibir a chave na UI, logs ou erros.
+  `GEMINI_API_KEY=your_gemini_api_key_here`.
+- A chave `GEMINI_API_KEY` deve ficar apenas no servidor Next.js. Nao exponha a
+  chave em componentes client, logs, erros, documentacao ou exemplos.
 - Nao copie valores reais de `.env` para mensagens, documentacao, commits ou
   exemplos.
 - Mantenha `node_modules/`, `dist/`, `.agents/`, `.codex/` e arquivos temporarios
@@ -111,8 +114,9 @@ verifique:
 
 ## 5. Arquitetura e Estado
 
-- `src/main.jsx` ainda concentra boa parte do fluxo. Nao aumente complexidade
-  sem necessidade; extraia helpers quando reduzir acoplamento real.
+- O editor ainda concentra boa parte do fluxo em `src/components/editor`.
+  Nao aumente complexidade sem necessidade; extraia helpers quando reduzir
+  acoplamento real.
 - Filtros locais devem operar sobre canvas e `ImageData`.
 - Exportacao PNG nao deve incluir overlay de mascara.
 - Modo normal pode usar mascara automatica/manual.

@@ -37,7 +37,7 @@ export function getGeminiErrorMessage(error) {
     {
       test: isInvalidGeminiAuthMessage,
       message:
-        "A chave Gemini foi rejeitada. Gere uma API key no Google AI Studio, confirme que ela pertence ao projeto certo e use essa chave em VITE_GEMINI_API_KEY.",
+        "A chave Gemini foi rejeitada. Gere uma API key no Google AI Studio, confirme que ela pertence ao projeto certo e use essa chave em GEMINI_API_KEY.",
     },
     {
       test: (value) => value.includes("PERMISSION_DENIED"),

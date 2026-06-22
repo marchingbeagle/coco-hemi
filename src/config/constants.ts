@@ -9,7 +9,6 @@ export const AI_HISTORY_STORE = "images";
 export const AI_HISTORY_LIMIT = 12;
 export const SECTION_STORAGE_KEY = "coco-hemi-collapsed-sections";
 export const PANEL_ORDER_STORAGE_KEY = "coco-hemi-sidebar-panel-order";
-export const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 export const GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image";
 export const AI_PROMPT_GUARDRAILS = `Quality & Realism: Maintain realistic skin texture, facial details, and natural imperfections. No plastic skin or over-smoothing. Preserve sharpness and depth of field.
 

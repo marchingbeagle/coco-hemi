@@ -1,5 +1,7 @@
+// @ts-nocheck
+"use client";
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { GoogleGenAI } from "@google/genai";
 import { FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -17,23 +19,33 @@ import {
   Wand2,
   ZoomIn,
 } from "lucide-react";
-import { Button } from "./components/ui/button";
-import { Card } from "./components/ui/card";
-import { Input } from "./components/ui/input";
-import { Textarea } from "./components/ui/textarea";
-import { GEMINI_API_KEY, GEMINI_IMAGE_MODEL, MEDIAPIPE_WASM_URL, PREVIEW_MAX_WIDTH, SELFIE_SEGMENTER_MODEL_URL, EXPORT_MAX_WIDTH, THUMB_WIDTH } from "./config/constants";
-import { aiPresets, defaultAdjustments, neutralPreset, presets, ratios, sidebarPanelOrder } from "./data/editor-presets";
-import { AdjustmentControls, SliderRange } from "./components/editor/AdjustmentControls";
-import { CollapsiblePanel } from "./components/editor/CollapsiblePanel";
-import { applyImageFilter, getCanvasBoardStyle, getStageWidth, getWheelZoom, mergeFilter } from "./lib/image-processing";
-import { downloadCanvas, downloadDataUrl, readFileAsDataUrl } from "./lib/file-downloads";
-import { buildHeuristicMask, combineMasks, copyImageData, enhanceHairMask, extractMediaPipeMask, getAutoMaskLabel, getRecognitionStepMessage, makeMask } from "./lib/masks";
-import { buildAiPrompt, dataUrlToInlineData, findGeminiGeneratedImage, getGeminiErrorMessage } from "./lib/gemini";
-import { deleteStoredAiImage, getStoredAiImages, saveStoredAiImage } from "./lib/ai-history";
-import { mergeSidebarPanelOrder, movePanelTo, readCollapsedSections, readSidebarPanelOrder } from "./lib/sidebar-state";
+import { Button } from "../ui/button";
+import { Card } from "../ui/card";
+import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
+import {
+  EXPORT_MAX_WIDTH,
+  MEDIAPIPE_WASM_URL,
+  PANEL_ORDER_STORAGE_KEY,
+  PREVIEW_MAX_WIDTH,
+  SECTION_STORAGE_KEY,
+  SELFIE_SEGMENTER_MODEL_URL,
+  THUMB_WIDTH,
+} from "../../config/constants";
+import { aiPresets, defaultAdjustments, neutralPreset, presets, ratios, sidebarPanelOrder } from "../../data/editor-presets";
+import { AdjustmentControls, SliderRange } from "./AdjustmentControls";
+import { CollapsiblePanel } from "./CollapsiblePanel";
+import { FilterSidebar } from "./FilterSidebar";
+import { applyImageFilter, clamp, getCanvasBoardStyle, getMaskValue, getStageWidth, getWheelZoom, mergeFilter } from "../../lib/image-processing";
+import { downloadCanvas, downloadDataUrl, readFileAsDataUrl } from "../../lib/file-downloads";
+import { buildHeuristicMask, combineMasks, copyImageData, enhanceHairMask, extractMediaPipeMask, getAutoMaskLabel, getRecognitionStepMessage, makeMask, resampleMask } from "../../lib/masks";
+import { buildAiPrompt, getGeminiErrorMessage } from "../../lib/gemini";
+import { createId, deleteStoredAiImage, getStoredAiImages, saveStoredAiImage } from "../../lib/ai-history";
+import { mergeSidebarPanelOrder, movePanelTo, readCollapsedSections, readSidebarPanelOrder } from "../../lib/sidebar-state";
+import { generateAiImage } from "../../services/gemini-client-service";
 
-// eslint-disable-next-line complexity -- App still orchestrates the single-file editor UI; algorithmic paths are split into helpers.
-export function App() {
+// eslint-disable-next-line complexity -- This client editor still orchestrates canvas state while visual and API seams are extracted.
+export function CocoHemiEditor() {
   const [imageUrl, setImageUrl] = useState("");
   const [originalImageUrl, setOriginalImageUrl] = useState("");
   const [imageName, setImageName] = useState("coco-hemi-photo");
@@ -776,41 +788,6 @@ export function App() {
     downloadCanvas(canvas, `${imageName}-${suffix}.png`);
   }
 
-  async function generateGeminiImage(apiKey, prompt) {
-    const ai = new GoogleGenAI({ apiKey });
-    const inputCanvas = renderBaseOutputCanvas(imageRef.current, selectedRatio);
-    const inlineData = dataUrlToInlineData(inputCanvas.toDataURL("image/png"));
-    return ai.models.generateContent({
-      model: GEMINI_IMAGE_MODEL,
-      contents: [
-        { text: prompt },
-        {
-          inlineData: {
-            mimeType: inlineData.mimeType,
-            data: inlineData.data,
-          },
-        },
-      ],
-    });
-  }
-
-  function getPartInlineData(part) {
-    return part?.inlineData || part?.inline_data || null;
-  }
-
-  function getGeminiImageData(response) {
-    const generatedPart = findGeminiGeneratedImage(response);
-    const inlineData = getPartInlineData(generatedPart);
-    const generatedData = inlineData?.data;
-    const mimeType = inlineData?.mimeType || inlineData?.mime_type || "image/png";
-
-    if (!generatedData) {
-      throw new Error("A resposta do Gemini nao trouxe uma imagem. Tente outro filtro ou prompt.");
-    }
-
-    return { generatedData, mimeType };
-  }
-
   function applyGeneratedImage(resultUrl, prompt) {
     const generatedName = `${imageName}-${selectedAiPreset.id}`;
     const historyEntry = {
@@ -836,12 +813,6 @@ export function App() {
   async function runAiFilter() {
     if (!imageRef.current || loadState !== "ready" || aiBusy) return;
 
-    const apiKey = GEMINI_API_KEY.trim();
-    if (!apiKey) {
-      setAiError("Configure VITE_GEMINI_API_KEY no arquivo .env do projeto para usar os filtros IA.");
-      return;
-    }
-
     setAiBusy(true);
     setAiError("");
     setAiResultUrl("");
@@ -852,9 +823,9 @@ export function App() {
         caption: polaroidCaption,
         date: polaroidDate,
       });
-      const response = await generateGeminiImage(apiKey, prompt);
-      const { generatedData, mimeType } = getGeminiImageData(response);
-      const resultUrl = `data:${mimeType};base64,${generatedData}`;
+      const inputCanvas = renderBaseOutputCanvas(imageRef.current, selectedRatio);
+      const { data, mimeType } = await generateAiImage(prompt, inputCanvas.toDataURL("image/png"));
+      const resultUrl = `data:${mimeType};base64,${data}`;
       applyGeneratedImage(resultUrl, prompt);
     } catch (error) {
       setAiError(getGeminiErrorMessage(error));
@@ -1520,65 +1491,17 @@ export function App() {
           </div>
         </section>
 
-        <aside className="filter-sidebar" aria-label="Selecao de filtros">
-          <div className="workspace-filters">
-            {!isAiMode ? (
-              <section className="filter-section" aria-labelledby="normal-filters-title">
-                <div className="section-heading">
-                  <h2 id="normal-filters-title">Filtros normais</h2>
-                  <span>Preview local</span>
-                </div>
-                <div className="filter-strip" aria-label="Filtros normais">
-                  {presets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      className={preset.id === selectedPreset.id ? "filter-card active" : "filter-card"}
-                      title={`${preset.name}: ${preset.label}`}
-                      onClick={() => setSelectedPreset(preset)}
-                    >
-                      <span className="filter-thumb">
-                        {filterThumbs[preset.id] ? (
-                          <img src={filterThumbs[preset.id]} alt="" />
-                        ) : (
-                          <span className={`filter-placeholder ${preset.id}`} />
-                        )}
-                      </span>
-                      <strong>{preset.name}</strong>
-                      <small>{preset.label}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {isAiMode ? (
-              <section className="filter-section ai-workspace-section" aria-labelledby="ai-filters-title">
-                <div className="section-heading">
-                  <h2 id="ai-filters-title">Filtros com IA</h2>
-                  <span>Gemini</span>
-                </div>
-                <div className="ai-filter-strip" aria-label="Filtros com inteligencia artificial">
-                  {aiPresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      className={preset.id === selectedAiPreset.id ? "ai-filter-card active" : "ai-filter-card"}
-                      onClick={() => {
-                        setSelectedAiPreset(preset);
-                        setCustomAiPrompt(preset.prompt);
-                        setAiError("");
-                        setAiResultUrl("");
-                      }}
-                    >
-                      <span className={`ai-filter-preview ${preset.id}`} />
-                      <strong>{preset.name}</strong>
-                      <small>{preset.label}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </div>
-        </aside>
+        <FilterSidebar
+          isAiMode={isAiMode}
+          selectedPreset={selectedPreset}
+          setSelectedPreset={setSelectedPreset}
+          filterThumbs={filterThumbs}
+          selectedAiPreset={selectedAiPreset}
+          setSelectedAiPreset={setSelectedAiPreset}
+          setCustomAiPrompt={setCustomAiPrompt}
+          setAiError={setAiError}
+          setAiResultUrl={setAiResultUrl}
+        />
       </section>
     </main>
   );

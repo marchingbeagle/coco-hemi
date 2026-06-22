@@ -1,11 +1,12 @@
 import { AI_HISTORY_DB, AI_HISTORY_LIMIT, AI_HISTORY_STORE } from "../config/constants";
+import type { AiHistoryItem } from "../types/editor";
 
-function createId() {
+export function createId() {
   return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function openAiHistoryDb() {
-  return new Promise((resolve, reject) => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(AI_HISTORY_DB, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -20,13 +21,13 @@ export function openAiHistoryDb() {
 
 export async function getStoredAiImages() {
   const db = await openAiHistoryDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<AiHistoryItem[]>((resolve, reject) => {
     const transaction = db.transaction(AI_HISTORY_STORE, "readonly");
     const request = transaction.objectStore(AI_HISTORY_STORE).getAll();
     request.onsuccess = () => {
       resolve(
         request.result
-          .sort((a, b) => b.createdAt - a.createdAt)
+          .sort((a: AiHistoryItem, b: AiHistoryItem) => b.createdAt - a.createdAt)
           .slice(0, AI_HISTORY_LIMIT),
       );
     };
@@ -35,9 +36,9 @@ export async function getStoredAiImages() {
   });
 }
 
-export async function saveStoredAiImage(entry) {
+export async function saveStoredAiImage(entry: AiHistoryItem) {
   const db = await openAiHistoryDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(AI_HISTORY_STORE, "readwrite");
     const store = transaction.objectStore(AI_HISTORY_STORE);
     store.put(entry);
@@ -46,7 +47,7 @@ export async function saveStoredAiImage(entry) {
       const overflow = request.result
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(AI_HISTORY_LIMIT);
-      overflow.forEach((item) => store.delete(item.id));
+      overflow.forEach((item: AiHistoryItem) => store.delete(item.id));
     };
     transaction.oncomplete = () => {
       db.close();
@@ -59,9 +60,9 @@ export async function saveStoredAiImage(entry) {
   });
 }
 
-export async function deleteStoredAiImage(id) {
+export async function deleteStoredAiImage(id: string) {
   const db = await openAiHistoryDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(AI_HISTORY_STORE, "readwrite");
     transaction.objectStore(AI_HISTORY_STORE).delete(id);
     transaction.oncomplete = () => {

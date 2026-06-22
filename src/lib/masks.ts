@@ -1,4 +1,4 @@
-import { clamp, getMaskValue } from "./image-processing";
+import { clamp, getAutoSubjectValue, getMaskValue } from "./image-processing";
 
 export function makeMask(width, height, fill = 0) {
   const data = new Uint8ClampedArray(width * height);

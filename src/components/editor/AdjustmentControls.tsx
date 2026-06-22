@@ -1,10 +1,28 @@
 import React from "react";
 import { useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import type { Adjustments } from "../../types/editor";
 
-export function AdjustmentControls({ values, onChange }) {
-  const update = (key) => (value) => onChange((current) => ({ ...current, [key]: value }));
-  const formatSignedPercent = (neutral = 0) => (value) => `${formatSignedNumber(Math.round((value - neutral) * 100))}%`;
-  const formatSignedValue = (value) => formatSignedNumber(value);
+type AdjustmentControlsProps = {
+  values: Adjustments;
+  onChange: Dispatch<SetStateAction<Adjustments>>;
+};
+
+type SliderRangeProps = {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  liveUpdate?: boolean;
+  formatValue?: (value: number) => React.ReactNode;
+};
+
+export function AdjustmentControls({ values, onChange }: AdjustmentControlsProps) {
+  const update = (key: keyof Adjustments) => (value: number) => onChange((current) => ({ ...current, [key]: value }));
+  const formatSignedPercent = (neutral = 0) => (value: number) => `${formatSignedNumber(Math.round((value - neutral) * 100))}%`;
+  const formatSignedValue = (value: number) => formatSignedNumber(value);
 
   return (
     <>
@@ -79,21 +97,22 @@ export function AdjustmentControls({ values, onChange }) {
   );
 }
 
-function formatSignedNumber(value) {
+function formatSignedNumber(value: number) {
   if (Object.is(value, -0) || value === 0) return "0";
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-export function SliderRange({ label, value, min, max, step, onChange, liveUpdate = false, formatValue = (nextValue) => nextValue }) {
+export function SliderRange({ label, value, min, max, step, onChange, liveUpdate = false, formatValue = (nextValue) => nextValue }: SliderRangeProps) {
   const [draftValue, setDraftValue] = useState(value);
   const percent = ((draftValue - min) / (max - min)) * 100;
   const displayValue = formatValue(draftValue);
+  const rangeStyle = { "--range-progress": `${percent}%` } as React.CSSProperties;
 
   useEffect(() => {
     setDraftValue(value);
   }, [value]);
 
-  function commit(nextValue = draftValue) {
+  function commit(nextValue: number | string = draftValue) {
     const numericValue = Number(nextValue);
     if (Number.isNaN(numericValue) || numericValue === value) return;
     onChange(numericValue);
@@ -111,7 +130,7 @@ export function SliderRange({ label, value, min, max, step, onChange, liveUpdate
         min={min}
         max={max}
         step={step}
-        style={{ "--range-progress": `${percent}%` }}
+        style={rangeStyle}
         onChange={(event) => {
           const nextValue = Number(event.target.value);
           setDraftValue(nextValue);
