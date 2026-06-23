@@ -19,12 +19,74 @@ import { EditorWorkspace } from "./EditorWorkspace";
 import { FilterSidebar } from "./FilterSidebar";
 import { useEditorPreview } from "./useEditorPreview";
 
+const FILTER_TYPE_PANEL_ID = "filter-type";
+const ADDITIVE_FILTER_KEYS = [
+  "exposure",
+  "warmth",
+  "fade",
+  "vibrance",
+  "highlights",
+  "shadows",
+  "sharpness",
+  "grain",
+  "vignette",
+  "backgroundWarmth",
+  "flash",
+  "rimLight",
+];
+const MULTIPLICATIVE_FILTER_KEYS = [
+  "brightness",
+  "contrast",
+  "saturation",
+  "backgroundSaturation",
+  "backgroundDarken",
+];
+
+function addFilterValue(combined, filter, key) {
+  return (combined[key] || 0) + (filter[key] || 0);
+}
+
+function multiplyFilterValue(combined, filter, key) {
+  return combined[key] * (filter[key] ?? 1);
+}
+
+function mergePresetFilter(combined, preset) {
+  const filter = preset.filter;
+  const next = { ...combined };
+
+  ADDITIVE_FILTER_KEYS.forEach((key) => {
+    next[key] = addFilterValue(combined, filter, key);
+  });
+  MULTIPLICATIVE_FILTER_KEYS.forEach((key) => {
+    next[key] = multiplyFilterValue(combined, filter, key);
+  });
+  next.subjectAware = Math.min(1, addFilterValue(combined, filter, "subjectAware"));
+
+  if (filter.skyTint) {
+    next.skyTint = {
+      ...filter.skyTint,
+      amount: Math.min(0.8, (combined.skyTint?.amount || 0) + filter.skyTint.amount),
+    };
+  }
+
+  return next;
+}
+
+function combinePresetFilters(selectedPresets) {
+  if (!selectedPresets.length) return neutralPreset;
+
+  return selectedPresets.reduce(mergePresetFilter, { ...neutralPreset });
+}
+
 export function CocoHemiEditor() {
   const [imageUrl, setImageUrl] = useState("");
   const [originalImageUrl, setOriginalImageUrl] = useState("");
+  const [aiBaseImageUrl, setAiBaseImageUrl] = useState("");
   const [imageName, setImageName] = useState("coco-hemi-photo");
   const [filterMode, setFilterMode] = useState("normal");
+  const [normalFilterMode, setNormalFilterMode] = useState("single");
   const [selectedPreset, setSelectedPreset] = useState(presets[0]);
+  const [selectedPresetIds, setSelectedPresetIds] = useState([presets[0].id]);
   const [selectedAiPreset, setSelectedAiPreset] = useState(aiPresets[0]);
   const [intensity, setIntensity] = useState(1);
   const [selectedRatio, setSelectedRatio] = useState(ratios[0]);
@@ -53,9 +115,15 @@ export function CocoHemiEditor() {
   const originalImageRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const selectedNormalPresets = useMemo(() => {
+    if (normalFilterMode === "single") return [selectedPreset];
+    const selectedIds = new Set(selectedPresetIds);
+    return presets.filter((preset) => selectedIds.has(preset.id));
+  }, [normalFilterMode, selectedPreset, selectedPresetIds]);
+
   const currentFilter = useMemo(
-    () => mergeFilter(selectedPreset.filter, adjustments, intensity),
-    [selectedPreset, intensity, adjustments],
+    () => mergeFilter(combinePresetFilters(selectedNormalPresets), adjustments, intensity),
+    [selectedNormalPresets, intensity, adjustments],
   );
   const isAiMode = filterMode === "ai";
   const aiFilter = useMemo(() => mergeFilter(neutralPreset, aiAdjustments, 1), [aiAdjustments]);
@@ -174,6 +242,7 @@ export function CocoHemiEditor() {
   }
 
   function getPanelOrderValue(panelId) {
+    if (panelId === FILTER_TYPE_PANEL_ID) return -100;
     const index = panelOrder.indexOf(panelId);
     return index < 0 ? sidebarPanelOrder.length : index;
   }
@@ -198,9 +267,7 @@ export function CocoHemiEditor() {
 
   function handlePanelDragStart(event) {
     const panelId = String(event.active.id);
-    if (!collapsedSections[panelId]) {
-      setDragCollapsedPanelId(panelId);
-    }
+    setDragCollapsedPanelId(panelId);
   }
 
   function handlePanelDragCancel() {
@@ -230,6 +297,7 @@ export function CocoHemiEditor() {
     setErrorMessage("");
     preview.resetMaskState();
     setAiError("");
+    setAiBaseImageUrl("");
     setAiResultUrl("");
     setAiAdjustments(defaultAdjustments);
     setRecognitionStepOpen(filterMode === "normal");
@@ -259,6 +327,45 @@ export function CocoHemiEditor() {
     downloadCanvas(canvas, `${imageName}-${suffix}.png`);
   }
 
+  function handleSelectPreset(preset) {
+    setSelectedPreset(preset);
+    if (normalFilterMode === "single") {
+      setSelectedPresetIds([preset.id]);
+    }
+  }
+
+  function handleTogglePreset(preset) {
+    setSelectedPreset(preset);
+    setSelectedPresetIds((current) => {
+      if (current.includes(preset.id)) {
+        return current.filter((id) => id !== preset.id);
+      }
+      return [...current, preset.id];
+    });
+  }
+
+  function handleNormalFilterModeChange(mode) {
+    setNormalFilterMode(mode);
+    if (mode === "single") {
+      setSelectedPresetIds([selectedPreset.id]);
+    }
+  }
+
+  function applyNormalFilterToAi() {
+    if (loadState !== "ready") return;
+    const canvas = preview.renderNormalFilterCanvas(currentFilter);
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL("image/png");
+    setAiBaseImageUrl(dataUrl);
+    setAiResultUrl("");
+    setAiError("");
+    setImageUrl(dataUrl);
+    setFilterMode("ai");
+    setRecognitionStepOpen(false);
+    setRecognitionStepDone(true);
+    preview.setIsShowingOriginal(false);
+  }
+
   function applyGeneratedImage(resultUrl, prompt) {
     const generatedName = `${imageName}-${selectedAiPreset.id}`;
     const historyEntry = {
@@ -282,7 +389,7 @@ export function CocoHemiEditor() {
   }
 
   async function runAiFilter() {
-    if (!imageRef.current || loadState !== "ready" || aiBusy) return;
+    if (loadState !== "ready" || aiBusy) return;
 
     setAiBusy(true);
     setAiError("");
@@ -294,7 +401,10 @@ export function CocoHemiEditor() {
         caption: polaroidCaption,
         date: polaroidDate,
       });
-      const inputCanvas = preview.getAiInputCanvas();
+      const inputCanvas = aiBaseImageUrl
+        ? await preview.renderImageUrlCanvas(aiBaseImageUrl)
+        : preview.getAiInputCanvas();
+      if (!inputCanvas) throw new Error("Nao foi possivel preparar a imagem para IA.");
       const { data, mimeType } = await generateAiImage(prompt, inputCanvas.toDataURL("image/png"));
       const resultUrl = `data:${mimeType};base64,${data}`;
       applyGeneratedImage(resultUrl, prompt);
@@ -316,6 +426,7 @@ export function CocoHemiEditor() {
     setSelectedAiPreset(aiPresets.find((preset) => preset.id === item.presetId) || aiPresets[0]);
     setImageName(item.imageName || `${imageName}-${item.presetId}`);
     setImageUrl(item.dataUrl);
+    setAiBaseImageUrl("");
     setAiResultUrl(item.dataUrl);
     setAiAdjustments(defaultAdjustments);
     setAiError("");
@@ -341,7 +452,7 @@ export function CocoHemiEditor() {
     preview.setIsShowingOriginal(false);
     if (isAiMode) {
       setAiResultUrl("");
-      setAiAdjustments(defaultAdjustments);
+      setAiBaseImageUrl("");
       setAiError("");
       if (originalImageUrl) {
         setImageUrl(originalImageUrl);
@@ -356,7 +467,9 @@ export function CocoHemiEditor() {
 
   function reset() {
     setFilterMode("normal");
+    setNormalFilterMode("single");
     setSelectedPreset(presets[0]);
+    setSelectedPresetIds([presets[0].id]);
     setSelectedAiPreset(aiPresets[0]);
     setIntensity(1);
     setSelectedRatio(ratios[0]);
@@ -369,6 +482,7 @@ export function CocoHemiEditor() {
     setRecognitionStepOpen(false);
     setRecognitionStepDone(false);
     setAiError("");
+    setAiBaseImageUrl("");
     setAiResultUrl("");
     setCustomAiPrompt(aiPresets[0].prompt);
     setPolaroidCaption("");
@@ -388,9 +502,19 @@ export function CocoHemiEditor() {
     if (mode === "normal" && loadState === "ready" && !recognitionStepDone) {
       setRecognitionStepOpen(true);
     }
+    if (mode === "normal" && originalImageUrl) {
+      setImageUrl(originalImageUrl);
+    }
     if (mode === "ai") {
       setRecognitionStepOpen(false);
       setRecognitionStepDone(true);
+      if (aiResultUrl) {
+        setImageUrl(aiResultUrl);
+      } else if (aiBaseImageUrl) {
+        setImageUrl(aiBaseImageUrl);
+      } else if (originalImageUrl) {
+        setImageUrl(originalImageUrl);
+      }
     }
   }
 
@@ -420,6 +544,7 @@ export function CocoHemiEditor() {
           polaroidDate={polaroidDate}
           aiBusy={aiBusy}
           aiError={aiError}
+          aiBaseImageUrl={aiBaseImageUrl}
           aiResultUrl={aiResultUrl}
           aiHistory={aiHistory}
           zoom={preview.zoom}
@@ -441,6 +566,7 @@ export function CocoHemiEditor() {
           onPolaroidCaptionChange={setPolaroidCaption}
           onPolaroidDateChange={setPolaroidDate}
           onRunAiFilter={runAiFilter}
+          onApplyNormalFilterToAi={applyNormalFilterToAi}
           onDownloadAiResult={downloadAiResult}
           onLoadStoredAiImage={loadStoredAiImage}
           onDownloadStoredAiImage={downloadStoredAiImage}
@@ -486,6 +612,7 @@ export function CocoHemiEditor() {
             handleFiles(event.dataTransfer.files);
           }}
           onStartCanvasPan={preview.startCanvasPan}
+          onBlockMiddleMousePan={preview.blockMiddleMousePan}
           onMoveCanvasPan={preview.moveCanvasPan}
           onStopCanvasPan={preview.stopCanvasPan}
           onStageCompareDown={(event) => preview.handleStageCompareDown(event, originalImageRef)}
@@ -499,8 +626,12 @@ export function CocoHemiEditor() {
 
         <FilterSidebar
           isAiMode={isAiMode}
+          normalFilterMode={normalFilterMode}
           selectedPreset={selectedPreset}
-          setSelectedPreset={setSelectedPreset}
+          selectedPresetIds={selectedPresetIds}
+          onSelectPreset={handleSelectPreset}
+          onTogglePreset={handleTogglePreset}
+          onNormalFilterModeChange={handleNormalFilterModeChange}
           filterThumbs={preview.filterThumbs}
           selectedAiPreset={selectedAiPreset}
           setSelectedAiPreset={setSelectedAiPreset}

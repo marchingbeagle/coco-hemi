@@ -1,5 +1,5 @@
 import React from "react";
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { closestCenter, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Brush,
@@ -13,6 +13,7 @@ import {
   Upload,
   Wand2,
   ZoomIn,
+  GripVertical,
 } from "lucide-react";
 import { ratios } from "../../data/editor-presets";
 import { getAutoMaskLabel } from "../../lib/masks";
@@ -22,6 +23,25 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { AdjustmentControls, SliderRange } from "./AdjustmentControls";
 import { CollapsiblePanel } from "./CollapsiblePanel";
+
+function restrictSidebarDragToVerticalAxis({ transform }) {
+  return {
+    ...transform,
+    x: 0,
+  };
+}
+
+const sidebarPanelTitles = {
+  "filter-type": "Tipo de filtro",
+  format: "Formato",
+  intensity: "Intensidade",
+  "ai-filters": "Filtros IA",
+  recognition: "Reconhecimento",
+  refine: "Refinar objeto",
+  zoom: "Zoom",
+  adjustments: "Ajustes finos",
+  "ai-adjustments": "Ajustes da imagem gerada",
+};
 
 export function EditorSidebar({
   fileInputRef,
@@ -40,6 +60,7 @@ export function EditorSidebar({
   polaroidDate,
   aiBusy,
   aiError,
+  aiBaseImageUrl,
   aiResultUrl,
   aiHistory,
   zoom,
@@ -61,6 +82,7 @@ export function EditorSidebar({
   onPolaroidCaptionChange,
   onPolaroidDateChange,
   onRunAiFilter,
+  onApplyNormalFilterToAi,
   onDownloadAiResult,
   onLoadStoredAiImage,
   onDownloadStoredAiImage,
@@ -107,11 +129,14 @@ export function EditorSidebar({
       />
 
       <DndContext
+        id="editor-sidebar-panels"
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={onPanelDragStart}
         onDragCancel={onPanelDragCancel}
         onDragEnd={onPanelDragEnd}
+        modifiers={[restrictSidebarDragToVerticalAxis]}
+        autoScroll={false}
       >
         <SortableContext items={visiblePanelOrder} strategy={verticalListSortingStrategy}>
           <CollapsiblePanel
@@ -181,6 +206,17 @@ export function EditorSidebar({
                 onChange={onIntensityChange}
                 formatValue={(value) => `${Math.round(value * 100)}%`}
               />
+              <Button
+                className="primary-button full-width"
+                onClick={onApplyNormalFilterToAi}
+                disabled={loadState !== "ready"}
+              >
+                <Wand2 size={18} />
+                Aplicar filtro para IA
+              </Button>
+              <p className="hint-text">
+                Consolida o preview atual e abre a aba IA usando essa imagem como base.
+              </p>
             </CollapsiblePanel>
           ) : null}
 
@@ -249,6 +285,9 @@ export function EditorSidebar({
                 <Sparkles size={18} />
                 {aiBusy ? "Gerando com IA..." : "Aplicar filtro IA"}
               </Button>
+              {aiBaseImageUrl && !aiResultUrl ? (
+                <p className="hint-text">A IA vai usar o filtro normal aplicado como base.</p>
+              ) : null}
               {aiError ? <p className="error-text">{aiError}</p> : null}
               {aiResultUrl ? (
                 <div className="ai-current-result">
@@ -416,6 +455,16 @@ export function EditorSidebar({
             </CollapsiblePanel>
           ) : null}
         </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {dragCollapsedPanelId ? (
+            <div className="panel panel-drag-preview">
+              <span className="panel-drag-preview-title">{sidebarPanelTitles[dragCollapsedPanelId]}</span>
+              <span className="panel-reorder panel-drag-preview-handle" aria-hidden="true">
+                <GripVertical size={15} />
+              </span>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       <div className="actions" style={{ order: 1000 }}>

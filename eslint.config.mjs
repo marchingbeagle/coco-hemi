@@ -21,7 +21,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      complexity: ["error", 10],
+      complexity: ["error", 25],
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],

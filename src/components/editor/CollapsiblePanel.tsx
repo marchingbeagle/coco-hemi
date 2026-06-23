@@ -32,7 +32,7 @@ function CollapsiblePanel({
   const isCollapsed = Boolean(collapsedSections[id]) || forceCollapsed;
   const panelStyle = {
     ...(Number.isFinite(orderValue) ? { order: orderValue } : {}),
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition: isDragging ? undefined : transition,
   };
 

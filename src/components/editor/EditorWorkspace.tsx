@@ -25,6 +25,7 @@ export function EditorWorkspace({
   onDragLeave,
   onDrop,
   onStartCanvasPan,
+  onBlockMiddleMousePan,
   onMoveCanvasPan,
   onStopCanvasPan,
   onStageCompareDown,
@@ -59,7 +60,9 @@ export function EditorWorkspace({
           <div
             className={isPanningCanvas ? "canvas-scroll panning" : "canvas-scroll"}
             ref={scrollRef}
+            onPointerDownCapture={onStartCanvasPan}
             onPointerDown={onStartCanvasPan}
+            onMouseDownCapture={onBlockMiddleMousePan}
             onPointerMove={onMoveCanvasPan}
             onPointerUp={onStopCanvasPan}
             onPointerCancel={onStopCanvasPan}

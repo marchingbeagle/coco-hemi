@@ -25,7 +25,9 @@ Stack atual:
 - Next.js App Router;
 - React `19`;
 - TypeScript com TSX;
-- CSS global em `src/styles.css`;
+- Tailwind CSS v4 configurado via `@tailwindcss/postcss`;
+- CSS global em `src/styles.css` para import do Tailwind, tokens, layout
+  complexo, canvas e responsividade compartilhada;
 - shadcn/ui adaptado localmente em `src/components/ui`;
 - `lucide-react` para icones;
 - `@google/genai` para Gemini;
@@ -39,8 +41,8 @@ app/page.tsx                 # rota principal do App Router
 app/api/gemini-image/route.ts # geracao IA server-side
 src/App.tsx                  # composicao raiz do editor
 src/components/editor/*.tsx  # fluxo principal do editor, filtros, IA e canvas
-src/styles.css               # tokens visuais, layout e estados responsivos
-src/components/ui/*.tsx      # componentes base no padrao shadcn adaptado
+src/styles.css               # Tailwind, tokens visuais, canvas/layout complexo
+src/components/ui/*.tsx      # componentes base no padrao shadcn com Tailwind
 src/lib/utils.ts             # helper cn()
 components.json              # configuracao shadcn
 .env.example                 # variaveis ficticias
@@ -58,6 +60,8 @@ components.json              # configuracao shadcn
   que apenas mascaram a falha.
 - Nao considere so o caminho feliz: pense em foto ausente, formato invalido,
   falha de modelo IA, quota, browser sem IndexedDB, mobile e desktop.
+- Se qualquer erro de lint for observado em analise, teste, build ou execucao,
+  corrija-o imediatamente antes de continuar ou concluir a entrega.
 - Sempre informe quais verificacoes foram executadas e quais nao puderam ser.
 
 ## 3. Seguranca e Dados Sensiveis
@@ -90,6 +94,11 @@ Durante a implementacao:
 
 - Trabalhe em incrementos pequenos.
 - Use os padroes existentes de estado, renderizacao e componentes.
+- Para UI, prefira utilitarios Tailwind e componentes shadcn locais antes de
+  adicionar novas classes globais.
+- Use `src/styles.css` para `@import "tailwindcss"`, tokens de tema, estilos de
+  canvas, layout responsivo compartilhado e estados que seriam repetitivos ou
+  frágeis em TSX.
 - Evite introduzir dependencias para tarefas que podem ser resolvidas com a
   stack atual.
 - Se mexer em download, exportacao ou geracao IA, teste falhas e estados de
@@ -99,6 +108,8 @@ Durante a implementacao:
 Antes de concluir:
 
 ```bash
+npm run test
+npm run lint
 npm run build
 ```
 
@@ -162,7 +173,11 @@ verifique:
 
 - Reutilize `src/components/ui` antes de criar novo componente base.
 - Componentes base devem seguir o padrao shadcn local: `Button`, `Card`,
-  `Input`, `Textarea`, `cn` e `class-variance-authority` quando fizer sentido.
+  `Input`, `Textarea`, `cn`, `tailwind-merge`, utilitarios Tailwind e
+  `class-variance-authority` quando fizer sentido.
+- Nao crie classes globais `shadcn-*` para componentes base novos; componha a
+  aparencia com Tailwind no proprio componente e use tokens CSS quando o valor
+  pertencer ao tema.
 - Mantenha interface dark-first, direta e densa.
 - Use `lucide-react` para icones.
 - Botoes de icone precisam de nome acessivel ou texto visivel.
@@ -204,6 +219,8 @@ verifique:
   estar refletida no `package-lock.json`.
 - Nao instale pacotes para funcionalidades que podem ser implementadas com APIs
   do navegador ja disponiveis.
+- Tailwind CSS v4 e `@tailwindcss/postcss` fazem parte da base atual do app;
+  preserve essa configuracao CSS-first salvo se a tarefa pedir outro caminho.
 - Depois de alterar dependencias, rode `npm run build`.
 
 ## 12. Git
@@ -226,6 +243,8 @@ Antes de concluir, confirme:
 - [ ] Historico local de IA nao quebra o editor quando falha.
 - [ ] UI funciona em desktop e mobile.
 - [ ] Interacoes principais tem nomes/labels acessiveis.
+- [ ] `npm run test` foi executado ou a limitacao foi informada.
+- [ ] `npm run lint` foi executado, e qualquer erro observado foi corrigido.
 - [ ] `npm run build` foi executado ou a limitacao foi informada.
 - [ ] O diff contem apenas mudancas necessarias.
 

@@ -19,7 +19,7 @@ export function useEditorPreview({
   shouldUseLocalFilter,
   showMaskOverlay,
   recognitionStepOpen,
-  recognitionStepDone,
+  recognitionStepDone: _recognitionStepDone,
   intensity,
   adjustments,
   brushSize,
@@ -378,6 +378,7 @@ export function useEditorPreview({
       if (!element) return;
 
       event.preventDefault();
+      if (canvasPanRef.current) return;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       canvasPanRef.current = {
         x: event.clientX,
@@ -386,6 +387,14 @@ export function useEditorPreview({
         scrollTop: element.scrollTop,
       };
       setIsPanningCanvas(true);
+    },
+    [loadState],
+  );
+
+  const blockMiddleMousePan = useCallback(
+    (event) => {
+      if (event.button !== 1 || loadState !== "ready") return;
+      event.preventDefault();
     },
     [loadState],
   );
@@ -446,6 +455,31 @@ export function useEditorPreview({
       });
     },
     [imageRef, selectedRatio],
+  );
+
+  const renderNormalFilterCanvas = useCallback(
+    (filter) => {
+      if (!imageRef.current) return null;
+      return renderOutputCanvas(imageRef.current, filter, selectedRatio, combinedMaskRef.current, {
+        useMask: true,
+      });
+    },
+    [imageRef, selectedRatio],
+  );
+
+  const renderImageUrlCanvas = useCallback(
+    (sourceUrl) =>
+      new Promise((resolve, reject) => {
+        if (!sourceUrl) {
+          resolve(null);
+          return;
+        }
+        const image = new Image();
+        image.onload = () => resolve(renderBaseOutputCanvas(image, selectedRatio));
+        image.onerror = () => reject(new Error("Nao foi possivel preparar a imagem para IA."));
+        image.src = sourceUrl;
+      }),
+    [selectedRatio],
   );
 
   const getAiInputCanvas = useCallback(() => {
@@ -586,11 +620,14 @@ export function useEditorPreview({
     stopPainting,
     handleStageCompareDown,
     startCanvasPan,
+    blockMiddleMousePan,
     moveCanvasPan,
     stopCanvasPan,
     resetZoom,
     renderDownloadCanvas,
     renderAiDownloadCanvas,
+    renderNormalFilterCanvas,
+    renderImageUrlCanvas,
     getAiInputCanvas,
   };
 }

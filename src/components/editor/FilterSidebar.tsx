@@ -3,8 +3,12 @@ import { aiPresets, presets } from "../../data/editor-presets";
 
 export function FilterSidebar({
   isAiMode,
+  normalFilterMode,
   selectedPreset,
-  setSelectedPreset,
+  selectedPresetIds,
+  onSelectPreset,
+  onTogglePreset,
+  onNormalFilterModeChange,
   filterThumbs,
   selectedAiPreset,
   setSelectedAiPreset,
@@ -13,8 +17,12 @@ export function FilterSidebar({
   setAiResultUrl,
 }: {
   isAiMode: boolean;
+  normalFilterMode: "single" | "multi";
   selectedPreset: (typeof presets)[number];
-  setSelectedPreset: (preset: (typeof presets)[number]) => void;
+  selectedPresetIds: string[];
+  onSelectPreset: (preset: (typeof presets)[number]) => void;
+  onTogglePreset: (preset: (typeof presets)[number]) => void;
+  onNormalFilterModeChange: (mode: "single" | "multi") => void;
   filterThumbs: Record<string, string>;
   selectedAiPreset: (typeof aiPresets)[number];
   setSelectedAiPreset: (preset: (typeof aiPresets)[number]) => void;
@@ -31,25 +39,55 @@ export function FilterSidebar({
               <h2 id="normal-filters-title">Filtros normais</h2>
               <span>Preview local</span>
             </div>
+            <div className="filter-mode-controls" aria-label="Modo de filtros normais">
+              <button
+                className={normalFilterMode === "single" ? "mode-button active" : "mode-button"}
+                onClick={() => onNormalFilterModeChange("single")}
+                type="button"
+              >
+                Um filtro
+              </button>
+              <button
+                className={normalFilterMode === "multi" ? "mode-button active" : "mode-button"}
+                onClick={() => onNormalFilterModeChange("multi")}
+                type="button"
+              >
+                Combinar
+              </button>
+            </div>
             <div className="filter-strip" aria-label="Filtros normais">
-              {presets.map((preset) => (
-                <button
-                  key={preset.id}
-                  className={preset.id === selectedPreset.id ? "filter-card active" : "filter-card"}
-                  title={`${preset.name}: ${preset.label}`}
-                  onClick={() => setSelectedPreset(preset)}
-                >
-                  <span className="filter-thumb">
-                    {filterThumbs[preset.id] ? (
-                      <img src={filterThumbs[preset.id]} alt="" />
-                    ) : (
-                      <span className={`filter-placeholder ${preset.id}`} />
-                    )}
-                  </span>
-                  <strong>{preset.name}</strong>
-                  <small>{preset.label}</small>
-                </button>
-              ))}
+              {presets.map((preset) => {
+                const isActive =
+                  normalFilterMode === "multi"
+                    ? selectedPresetIds.includes(preset.id)
+                    : preset.id === selectedPreset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    className={isActive ? "filter-card active" : "filter-card"}
+                    title={`${preset.name}: ${preset.label}`}
+                    onClick={() => {
+                      if (normalFilterMode === "multi") {
+                        onTogglePreset(preset);
+                        return;
+                      }
+                      onSelectPreset(preset);
+                    }}
+                    type="button"
+                    aria-pressed={isActive}
+                  >
+                    <span className="filter-thumb">
+                      {filterThumbs[preset.id] ? (
+                        <img src={filterThumbs[preset.id]} alt="" />
+                      ) : (
+                        <span className={`filter-placeholder ${preset.id}`} />
+                      )}
+                    </span>
+                    <strong>{preset.name}</strong>
+                    <small>{preset.label}</small>
+                  </button>
+                );
+              })}
             </div>
           </section>
         ) : null}
